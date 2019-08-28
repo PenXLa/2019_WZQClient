@@ -1,11 +1,10 @@
 #include "Server.h"
 #include <string>
-#include <winsock2.h>
 #include <windows.h>
 #include "config.h"
 #include <thread>
 #include <queue>
-
+#include <iostream>
 
 SOCKET server;
 bool connect2Server() {
@@ -37,36 +36,39 @@ void startReceiving() {
         char buf[1024];
         int packSize = 0;
         while(true) {
-            //接收客户端发来的命令
             int size = recv(server,buf,sizeof buf,0);
             if(size > 0){
                 for (int i=0; i<size; ++i) que.emplace(buf[i]);
-            } else if (size == 0) {
+            } else {
                 //连接关闭
                 closesocket(server);
                 onDisconnected();
-            } else {
-                //错误
+                return;
             }
 
-            if (packSize == 0) {
-                if (que.size() >= sizeof(int)) {
-                    for (int i=0; i< sizeof(int); ++i) {
-                        packSize <<= 8;
-                        packSize |= que.front();
-                        que.pop();
+            while(que.size() >= sizeof(int) || packSize!=0) {
+                if (packSize == 0) {
+                    if (que.size() >= sizeof(int)) {
+                        for (int i=0; i< sizeof(int); ++i) {
+                            packSize <<= 8;
+                            packSize |= que.front();
+                            que.pop();
+                        }
                     }
                 }
-            } else {
-                if (que.size()>=packSize) {
-                    std::string str;
-                    for (int i=0; i<packSize; ++i) {
-                        str.push_back(que.front());
-                        que.pop();
+                if (packSize != 0) {
+                    if (que.size()>=packSize) {
+                        std::string str;
+                        for (int i=0; i<packSize; ++i) {
+                            str.push_back(que.front());
+                            que.pop();
+                        }
+                        str.push_back(0);
+
+                        auto json = neb::CJsonObject(str);
+                        onReceive(json);
+                        packSize=0;
                     }
-                    str.push_back(0);
-                    onReceive(neb::CJsonObject(str));
-                    packSize=0;
                 }
             }
 
@@ -107,10 +109,11 @@ void sendPack(neb::CJsonObject &json) {
 
 
 
-void onReceive(const neb::CJsonObject& json) {
-
+void onReceive(neb::CJsonObject& json) {
+    std::cout << json["content"].ToString() << '\n';
 }
 
 void onDisconnected() {
 
 }
+
