@@ -2,7 +2,11 @@
 #define _UIUTILS_
 
 
-bool login();
-
-
+void login();
+void showMainMenu();
+void welcome();
+void showRegister();
+void showPersonalInfo();
+void printPersonalInfo(neb::CJsonObject &json);
+void showChangeUserName();
 #endif

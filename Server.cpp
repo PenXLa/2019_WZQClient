@@ -2,11 +2,14 @@
 #include <string>
 #include <windows.h>
 #include "config.h"
-#include <thread>
 #include <queue>
 #include <iostream>
+#include "UIUtils.h"
+#include <thread>
+
 
 SOCKET server;
+
 bool connect2Server() {
     server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     SOCKADDR_IN addr;
@@ -29,7 +32,6 @@ bool connect2Server() {
 }
 
 
-
 void startReceiving() {
     std::thread receiver([](){
         std::queue<char> que;
@@ -46,12 +48,12 @@ void startReceiving() {
                 return;
             }
 
-            while(que.size() >= sizeof(int) || packSize!=0) {
+            while(que.size()>=sizeof(int) && packSize==0 || packSize!=0 && que.size()>=packSize) {
                 if (packSize == 0) {
                     if (que.size() >= sizeof(int)) {
                         for (int i=0; i< sizeof(int); ++i) {
                             packSize <<= 8;
-                            packSize |= que.front();
+                            packSize |= (unsigned char)que.front();
                             que.pop();
                         }
                     }
@@ -64,9 +66,10 @@ void startReceiving() {
                             que.pop();
                         }
                         str.push_back(0);
-
                         auto json = neb::CJsonObject(str);
+
                         onReceive(json);
+
                         packSize=0;
                     }
                 }
@@ -97,10 +100,8 @@ void sendPack(neb::CJsonObject &json) {
     while(sum > 0) {
         int res = send(server, buf+len-sum, sum, 0);
         if (res > 0) sum-=res;
-        else if (res == 0) {
-            //断开
-        } else {
-            //错误
+        else {
+            //断开/错误
         }
     }
 
@@ -110,10 +111,42 @@ void sendPack(neb::CJsonObject &json) {
 
 
 void onReceive(neb::CJsonObject& json) {
-    std::cout << json["content"].ToString() << '\n';
+    std::string type;
+    json.Get("type", type);
+    if (type == "loginResult") {
+        int result;
+        json.Get("result", result);
+        if (result) {
+            showMainMenu();
+        } else {
+            MessageBoxA(nullptr, "登录失败，请检查用户名和密码拼写是否正确", "联机五子棋", MB_OK | MB_ICONWARNING);
+            welcome();
+        }
+    } else if (type == "registerResult") {
+        int result;
+        json.Get("result", result);
+        if (result) {
+            showMainMenu();
+        } else {
+            std::string reason;
+            json.Get("reason", reason);
+            MessageBoxA(nullptr, reason.c_str(),"注册失败",MB_OK | MB_ICONWARNING);
+            welcome();
+        }
+    } else if (type == "showPersonalInfo") {
+        printPersonalInfo(json);
+    } else if (type == "changeUserNameResult") {
+        int result;
+        json.Get("result", result);
+        if (result) {
+            MessageBoxA(NULL, "修改用户名成功", "联机五子棋", MB_OK|MB_ICONINFORMATION);
+        } else {
+            MessageBoxA(NULL, "修改用户名失败", "联机五子棋", MB_OK|MB_ICONWARNING);
+        }
+    }
 }
 
 void onDisconnected() {
-
+    std::cout << "Server shutdown.\n";
 }
 
