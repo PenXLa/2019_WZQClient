@@ -11,4 +11,5 @@ void sendPack(neb::CJsonObject&);
 void onReceive(neb::CJsonObject& json);
 void onDisconnected();
 extern SOCKET server;
+extern neb::CJsonObject playerInfo;
 #endif

@@ -9,6 +9,7 @@
 
 
 SOCKET server;
+neb::CJsonObject playerInfo;
 
 bool connect2Server() {
     server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -117,31 +118,34 @@ void onReceive(neb::CJsonObject& json) {
         int result;
         json.Get("result", result);
         if (result) {
-            showMainMenu();
+            mainThreadFunctions.emplace(showMainMenu);//主线程调用showMainMenu
         } else {
             MessageBoxA(nullptr, "登录失败，请检查用户名和密码拼写是否正确", "联机五子棋", MB_OK | MB_ICONWARNING);
-            welcome();
+            mainThreadFunctions.emplace(welcome);//主线程调用
         }
     } else if (type == "registerResult") {
         int result;
         json.Get("result", result);
         if (result) {
-            showMainMenu();
+            mainThreadFunctions.emplace(showMainMenu);//主线程调用
         } else {
             std::string reason;
             json.Get("reason", reason);
             MessageBoxA(nullptr, reason.c_str(),"注册失败",MB_OK | MB_ICONWARNING);
-            welcome();
+            mainThreadFunctions.emplace(welcome);//主线程调用
         }
     } else if (type == "showPersonalInfo") {
-        printPersonalInfo(json);
+        playerInfo = json;
+        mainThreadFunctions.emplace(printPersonalInfo);//主线程调用
     } else if (type == "changeUserNameResult") {
         int result;
         json.Get("result", result);
         if (result) {
             MessageBoxA(NULL, "修改用户名成功", "联机五子棋", MB_OK|MB_ICONINFORMATION);
         } else {
-            MessageBoxA(NULL, "修改用户名失败", "联机五子棋", MB_OK|MB_ICONWARNING);
+            std::string reason;
+            json.Get("reason", reason);
+            MessageBoxA(NULL, reason.c_str(), "修改用户名失败", MB_OK|MB_ICONWARNING);
         }
     }
 }

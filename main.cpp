@@ -26,7 +26,12 @@ int main() {
     //********¡ü³õÊ¼»¯Socket**********
 
     while(1) {
-        Sleep(1000);
+        if (!mainThreadFunctions.empty()) {
+            void (*func)(void) = mainThreadFunctions.front();
+            mainThreadFunctions.pop();
+            func();
+        }
+        Sleep(10);
     }
 
     return 0;

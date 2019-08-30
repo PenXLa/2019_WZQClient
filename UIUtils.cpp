@@ -4,6 +4,10 @@
 #include "UIUtils.h"
 #include "commonHeads.h"
 #include "config.h"
+#include "KeyEventHandler.h"
+
+
+std::queue<void(*)(void)> mainThreadFunctions;
 
 //用于在屏幕中心输出文字
 void putsCenter(string str, bool xcen = true, bool ycen = true, int xoff = 0, int yoff=0) {
@@ -90,12 +94,13 @@ void login() {
 void showMainMenu() {
     clrscr();
     printf("1.随机匹配\n2.好友对战\n3.个人资料\n4.更换账号\n0.退出\n");
+
     while(1) {
         char ch = getch();
         if (ch == '1') {
-
+            break;
         } else if (ch == '2') {
-
+            break;
         } else if (ch == '3') {
             showPersonalInfo();
             break;
@@ -113,6 +118,7 @@ void showMainMenu() {
 void welcome() {
     clrscr();
     printf("联机五子棋\n1.登录\n2.注册\n3.离线游戏\n");
+
     while(1) {
         char ch = getch();
         if (ch == '1') {
@@ -122,10 +128,9 @@ void welcome() {
             showRegister();
             break;
         } else if (ch == '3') {
-
+            break;
         }
     }
-
 }
 
 
@@ -154,26 +159,31 @@ void showPersonalInfo() {
     printf("加载中...\n");
 }
 
-void printPersonalInfo(neb::CJsonObject &json) {
+void printPersonalInfo() {
     clrscr();
     string name, des; int rating;
-    json.Get("name", name); json.Get("description", des);
-    json.Get("rating", rating);
+    playerInfo.Get("name", name); playerInfo.Get("description", des);
+    playerInfo.Get("rating", rating);
     printf("%s\n等级:%d\n个性签名:%s\n", name.c_str(), rating, des.c_str());
 
     printf("\n\n1.更改用户名\n2.更改个性签名\n3.更改密码\n0.返回\n");
+
     while(1) {
         char ch = getch();
+
         if (ch == '1') {
             showChangeUserName();
+            break;
         } else if (ch == '2') {
-
+            break;
         } else if (ch == '3') {
-
+            break;
         } else if (ch == '0') {
-
+            showMainMenu();
+            break;
         }
     }
+
 }
 
 
@@ -189,5 +199,19 @@ void showChangeUserName() {
         json.Add("name", userName);
         sendPack(json);
     }
-    showMainMenu();
+    showPersonalInfo();
+}
+
+void showChangeDescription() {
+    clrscr();
+    printf("输入个性签名：");
+    std::string des;
+    cin >> des;
+    if (MessageBoxA(NULL, "确认要修改吗?", "修改个性签名", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+        neb::CJsonObject json;
+        json.Add("type", "changeDescription");
+        json.Add("des", des);
+        sendPack(json);
+    }
+    showPersonalInfo();
 }

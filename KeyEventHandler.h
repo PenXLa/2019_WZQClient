@@ -4,11 +4,12 @@
 
 #include <functional>
 #include <thread>
+
 class KeyEventHandler {
 public:
     volatile bool shouldStop = false;
-    std::function<void(char)> lambda;
-    KeyEventHandler(std::function<void(char)> lambda);
+    std::function<void(char)> &lambda;
+    KeyEventHandler(std::function<void(char)>);
     void start();
     void stop();
 };
