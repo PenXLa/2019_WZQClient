@@ -12,6 +12,10 @@ void showPersonalInfo();
 void printPersonalInfo();
 void showChangeUserName();
 void showChangeDescription();
+void showChangePassword();
+void printGameHelp();
+void printGamingPlayerInfo();
+void printTurningInfo();
 
 extern std::queue<void(*)(void) > mainThreadFunctions;
 

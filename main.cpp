@@ -4,10 +4,11 @@
 #include "config.h"
 #include "./JSONLib/CJsonObject.hpp"
 #include <iostream>
+#include "Game.h"
 int main() {
     char cmd[100];
-//    sprintf(cmd, "mode con cols=%d lines=%d", width, height);
-//    system(cmd);
+    sprintf(cmd, "mode con cols=%d lines=%d", width, height);
+    system(cmd);
     //********↑设置控制台大小*********
     //********↓初始化Socket**********
     WSADATA Wsd;

@@ -6,6 +6,7 @@
 #include <iostream>
 #include "UIUtils.h"
 #include <thread>
+#include "Game.h"
 
 
 SOCKET server;
@@ -24,7 +25,6 @@ bool connect2Server() {
 
     if (ret == SOCKET_ERROR)
     {
-        closesocket(server);
         WSACleanup();
         return false;
     }
@@ -44,7 +44,6 @@ void startReceiving() {
                 for (int i=0; i<size; ++i) que.emplace(buf[i]);
             } else {
                 //连接关闭
-                closesocket(server);
                 onDisconnected();
                 return;
             }
@@ -102,7 +101,7 @@ void sendPack(neb::CJsonObject &json) {
         int res = send(server, buf+len-sum, sum, 0);
         if (res > 0) sum-=res;
         else {
-            //断开/错误
+            MessageBoxA(NULL, "发送错误", "", MB_OK);
         }
     }
 
@@ -114,6 +113,7 @@ void sendPack(neb::CJsonObject &json) {
 void onReceive(neb::CJsonObject& json) {
     std::string type;
     json.Get("type", type);
+    //MessageBox(NULL, json.ToFormattedString().c_str(), "", MB_OK);
     if (type == "loginResult") {
         int result;
         json.Get("result", result);
@@ -137,16 +137,52 @@ void onReceive(neb::CJsonObject& json) {
     } else if (type == "showPersonalInfo") {
         playerInfo = json;
         mainThreadFunctions.emplace(printPersonalInfo);//主线程调用
-    } else if (type == "changeUserNameResult") {
+    } else if (type == "changePersonalInfoResult") {
         int result;
         json.Get("result", result);
         if (result) {
-            MessageBoxA(NULL, "修改用户名成功", "联机五子棋", MB_OK|MB_ICONINFORMATION);
+            MessageBoxA(NULL, "修改个人信息成功", "联机五子棋", MB_OK|MB_ICONINFORMATION);
         } else {
             std::string reason;
             json.Get("reason", reason);
-            MessageBoxA(NULL, reason.c_str(), "修改用户名失败", MB_OK|MB_ICONWARNING);
+            MessageBoxA(NULL, reason.c_str(), "修改个人信息失败", MB_OK|MB_ICONWARNING);
         }
+    } else if (type == "changePasswordResult") {
+        int result;
+        json.Get("result", result);
+        if (result) {
+            MessageBoxA(NULL, "修改密码成功", "联机五子棋", MB_OK|MB_ICONINFORMATION);
+        } else {
+            std::string reason;
+            json.Get("reason", reason);
+            MessageBoxA(NULL, reason.c_str(), "修改密码失败", MB_OK|MB_ICONWARNING);
+        }
+    } else if (type == "startGame") {
+        int color;
+        json.Get("color", color);
+        chessColor = color;
+        if (color == 'b') {
+            json.Get("binfo", myInfo);
+            json.Get("winfo", oppInfo);
+        } else {
+            json.Get("winfo", myInfo);
+            json.Get("binfo", oppInfo);
+        }
+        prepareGame();
+        mainThreadFunctions.emplace(startGame);
+    } else if (type == "yourTurn") {
+        isMyTurn = true;
+        printTurningInfo();
+    } else if (type == "putChess") {
+        int r,c,color;
+        json.Get("row", r);
+        json.Get("col", c);
+        json.Get("color", color);
+        putChess(r,c,color);
+    } else if (type == "oppExited") {
+        MessageBoxA(NULL, "对方退出游戏", "联机五子棋", MB_OK);
+        gameRunning = false;
+        mainThreadFunctions.emplace(showMainMenu);
     }
 }
 

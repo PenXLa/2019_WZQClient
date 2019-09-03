@@ -5,9 +5,11 @@
 #include "commonHeads.h"
 #include "config.h"
 #include "KeyEventHandler.h"
-
+#include "Game.h"
 
 std::queue<void(*)(void)> mainThreadFunctions;
+
+
 
 //用于在屏幕中心输出文字
 void putsCenter(string str, bool xcen = true, bool ycen = true, int xoff = 0, int yoff=0) {
@@ -98,6 +100,7 @@ void showMainMenu() {
     while(1) {
         char ch = getch();
         if (ch == '1') {
+            startMatching();
             break;
         } else if (ch == '2') {
             break;
@@ -128,6 +131,7 @@ void welcome() {
             showRegister();
             break;
         } else if (ch == '3') {
+            startGame();
             break;
         }
     }
@@ -175,8 +179,10 @@ void printPersonalInfo() {
             showChangeUserName();
             break;
         } else if (ch == '2') {
+            showChangeDescription();
             break;
         } else if (ch == '3') {
+            showChangePassword();
             break;
         } else if (ch == '0') {
             showMainMenu();
@@ -206,7 +212,7 @@ void showChangeDescription() {
     clrscr();
     printf("输入个性签名：");
     std::string des;
-    cin >> des;
+    getline(cin,des);
     if (MessageBoxA(NULL, "确认要修改吗?", "修改个性签名", MB_YESNO | MB_ICONQUESTION) == IDYES) {
         neb::CJsonObject json;
         json.Add("type", "changeDescription");
@@ -214,4 +220,63 @@ void showChangeDescription() {
         sendPack(json);
     }
     showPersonalInfo();
+}
+
+
+void showChangePassword() {
+    clrscr();
+
+    string oldpwd, newpwd;
+    cout << "输入旧密码:\n";
+    cin >> oldpwd;
+    cout << "输入新密码:\n";
+    cin >> newpwd;
+
+    neb::CJsonObject json;
+    json.Add("type", "changePassword");
+    json.Add("old", oldpwd);
+    json.Add("new", newpwd);
+    sendPack(json);
+
+    showPersonalInfo();
+}
+
+
+void printGameHelp() {
+    gotoxy(CHESSBOARD_WIDTH*4+10, 2);
+    printf("使用方向键控制选中的格子");
+    gotoxy(CHESSBOARD_WIDTH*4+10, 3);
+    printf("Enter键放下棋子");
+}
+
+
+void printGamingPlayerInfo() {
+    std::string name, des;
+    myInfo.Get("name", name);
+    myInfo.Get("description", des);
+    gotoxy(CHESSBOARD_WIDTH*4+10, 5);
+    if (chessColor=='w') printf("白棋");
+    else printf("黑棋");
+    gotoxy(CHESSBOARD_WIDTH*4+10, 6);
+    printf("%s", name.c_str());
+    gotoxy(CHESSBOARD_WIDTH*4+10, 7);
+    printf("%s", des.c_str());
+
+
+    oppInfo.Get("name", name);
+    oppInfo.Get("description", des);
+    gotoxy(CHESSBOARD_WIDTH*4+10, 9);
+    if (chessColor=='b') printf("白棋");
+    else printf("黑棋");
+    gotoxy(CHESSBOARD_WIDTH*4+10, 10);
+    printf("%s", name.c_str());
+    gotoxy(CHESSBOARD_WIDTH*4+10, 11);
+    printf("%s", des.c_str());
+}
+
+void printTurningInfo() {
+    gotoxy(CHESSBOARD_WIDTH*4+10, 15);
+    clreol();
+    if (isMyTurn) printf("该您下了");
+    else printf("请等待对方下棋");
 }
