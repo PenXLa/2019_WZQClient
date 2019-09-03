@@ -13,8 +13,10 @@ extern const unsigned char KEY_ESC;
 
 extern const unsigned int MAX_PASSWORD_LEN;//最长密码长度
 extern const unsigned int MAX_USERNAME_LEN;//最长用户名长度
-extern const char SERVER_IP[];
+extern char SERVER_IP[20];
 
+
+void readConfig();
 
 #define CHESSBOARD_WIDTH 25
 #define CHESSBOARD_HEIGHT 19

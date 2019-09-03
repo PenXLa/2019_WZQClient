@@ -16,6 +16,7 @@ void showChangePassword();
 void printGameHelp();
 void printGamingPlayerInfo();
 void printTurningInfo();
+void setCursorVisible(bool);
 
 extern std::queue<void(*)(void) > mainThreadFunctions;
 

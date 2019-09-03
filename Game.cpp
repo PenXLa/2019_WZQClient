@@ -5,6 +5,7 @@
 #include "Server.h"
 #include "KeyEventHandler.h"
 #include <windows.h>
+#include <iostream>
 
 volatile bool gameRunning = false;
 volatile bool isMyTurn = false;
@@ -39,10 +40,11 @@ char mat[CHESSBOARD_HEIGHT][CHESSBOARD_WIDTH];
 int curR = 5, curC = 5;
 //画一个r行c列的网格，dirt参数若不为-1则表示仅更新dirt标识出的方格
 void printGrid(int r, int c, int dirtR=-1, int dirtC=-1) {
+    textbackground(BROWN);
     const char *chr;
     //基于5*3的cell大小
-    for (int i=0; i<2*r+1; ++i) {
-        for (int j=0; j<4*c+1; ++j) {
+    for (int i=0, j; i<2*r+1; ++i) {
+        for (j=0; j<4*c+1; ++j) {
             if ((dirtR==-1 || i>=dirtR*2 && i<=dirtR*2+2) && (dirtC==-1 || j>=dirtC*4 && j<=dirtC*4+4)) {
                 gotoxy(1+j,1+i);
                 int b = getPosBoundary(i,j,curR, curC);
@@ -88,26 +90,28 @@ void printGrid(int r, int c, int dirtR=-1, int dirtC=-1) {
                     if (j%4==0) chr=(b==4||b==5?"┃":"│");
                     else chr = " ";
 
-                if (!strcmp(chr, "┃")) textcolor(LIGHTGRAY);
+                if (!strcmp(chr, "┃")) textcolor(chessColor=='w'?LIGHTGRAY:BLACK);
                 else textcolor(DARKGRAY);
                 printf(chr);
             }
         }
+        if ((dirtR==-1 || i>=dirtR*2 && i<=dirtR*2+2) && (dirtC==-1 || j>=dirtC*4 && j<=dirtC*4+4))
+            putchar(' ');//行末填充空格，让棕色的棋盘拓宽一格
     }
 
-    textcolor(WHITE);
+
     for (int i=0; i<r; ++i) {
         for (int j=0; j<c; ++j) {
             if ((dirtR==-1 || i==dirtR) && (dirtC==-1 || j==dirtC) && mat[i][j]) {
                 gotoxy(j*4+3, i*2+2);
-                if (mat[i][j]=='w') printf("●");
-                else printf("○");
+                textcolor(mat[i][j]=='w'?WHITE:BLACK);
+                printf("●");
             }
         }
     }
 
     textcolor(LIGHTGRAY);
-    gotoxy(width, height);
+    textbackground(BLACK);
 }
 
 
@@ -173,13 +177,24 @@ void startGame() {
 }
 
 
-void startMatching() {
+void startMatching(bool friendMatching) {
     neb::CJsonObject json;
     json.Add("type", "match");
-    sendPack(json);
+
+    if (friendMatching) {
+        clrscr();
+        printf("输入匹配暗号，输入相同号码的玩家将被匹配到同一局\n匹配暗号可以是任意长度小于10的字符串，例如 hello123\n");
+        std::string code;
+        std::cin >> code;
+        json.Add("code", code);
+        json.Add("randomMatching", false);
+    }
+    json.Add("friendMatching", friendMatching);
 
     clrscr();
     printf("正在为您匹配玩家，请稍候...\n按ESC取消匹配\n");
+
+    sendPack(json);
 
     while(!gameRunning) {
         if (kbhit() && getch()==KEY_ESC) {

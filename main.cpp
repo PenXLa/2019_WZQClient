@@ -9,7 +9,12 @@ int main() {
     char cmd[100];
     sprintf(cmd, "mode con cols=%d lines=%d", width, height);
     system(cmd);
+    SetConsoleTitle("联机五子棋");
+    setCursorVisible(false);
     //********↑设置控制台大小*********
+
+    readConfig();//读入配置文件
+
     //********↓初始化Socket**********
     WSADATA Wsd;
     if (WSAStartup(MAKEWORD(2, 2), &Wsd) != 0) {

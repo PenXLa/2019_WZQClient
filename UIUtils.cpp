@@ -12,9 +12,9 @@ std::queue<void(*)(void)> mainThreadFunctions;
 
 
 //用于在屏幕中心输出文字
-void putsCenter(string str, bool xcen = true, bool ycen = true, int xoff = 0, int yoff=0) {
+void putsCenter(string str, bool xcen = true, bool ycen = true, int xoff = 0, int yoff=0, float zoomW=1) {
     int x = xoff, y = yoff;
-    if (xcen) x += width/2 - str.length()/2;
+    if (xcen) x += width/2 - str.length()*zoomW/2;
     if (ycen) y += height/2;
     gotoxy(x,y);
     puts(str.c_str());
@@ -23,8 +23,8 @@ void putsCenter(string str, bool xcen = true, bool ycen = true, int xoff = 0, in
 //用于自定义读取字符串
 const string acceptedChars = "`1234567890-=~!@#$%^&*(_+qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM[]\\{}|;':\",./<>?";
 const int READSTR_SUCCESS = 1, READSTR_CANCELED = 2, READSTR_CONTINUE = 0;
-string readString(std::function<int(char&, string&)> onGotChar) {
-    string str;
+int readString(std::function<int(char&, string&)> onGotChar, string &str) {
+    setCursorVisible(true);
     while(true) {
         char ch = getch();
         if (ch == '\b') {
@@ -33,15 +33,18 @@ string readString(std::function<int(char&, string&)> onGotChar) {
                 str.pop_back();
             }
         } else if (ch == '\r') {
-            return str;
-        } else if (ch == KEY_ESC) {
+            setCursorVisible(false);
+            return READSTR_SUCCESS;
+        } /*else if (ch == KEY_ESC) {
             int len = str.length();
             for (int i=0; i<len; ++i) printf("\b \b");
             str.clear();
-        } else {
+        } */else {
             int res = onGotChar(ch, str);
-            if (res == READSTR_SUCCESS) return str;
-            else if (res == READSTR_CANCELED) return "";
+            if (res == READSTR_SUCCESS || res == READSTR_CANCELED) {
+                setCursorVisible(false);
+                return res;
+            }
         }
 
     }
@@ -50,32 +53,37 @@ string readString(std::function<int(char&, string&)> onGotChar) {
 
 
 void login() {
+    const int xoff = 10;
     start:;
     clrscr();
-    gotoxy(half_w-10, half_h-2);
-    puts("请登录");
-    gotoxy(half_w-10, half_h);
+    gotoxy(half_w-xoff, half_h-2);
+    puts("请登录(按ESC返回)");
+    gotoxy(half_w-xoff, half_h);
     puts("用户名：");
-    gotoxy(half_w-10, half_h+2);
+    gotoxy(half_w-xoff, half_h+2);
     puts("密码：  ");
 
     string username, pwd;
-    gotoxy(half_w-10+8, half_h);
-    username = readString([](char &ch, string &str){
-        if (str.length() < MAX_USERNAME_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
+    gotoxy(half_w-xoff+8, half_h);
+    int res = readString([](char &ch, string &str){
+        if (ch == KEY_ESC) {
+            return READSTR_CANCELED;
+        } else if (str.length() < MAX_USERNAME_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
             str.push_back(ch);
             putch(ch);
         }
         return READSTR_CONTINUE;
-    });
-    if (username == "") goto start;
+    }, username);
+    if (res == READSTR_CANCELED) {
+        mainThreadFunctions.emplace(welcome);
+        return;
+    }
 
 
-    gotoxy(half_w-10+8, half_h+2);
+    gotoxy(half_w-xoff+8, half_h+2);
     //读取密码
-    pwd = readString([](char &ch, string &str){
-        if (ch == KEY_UP) {
-            //按下上方向键，返回用户名输入
+    res = readString([](char &ch, string &str){
+        if (ch == KEY_ESC) {
             return READSTR_CANCELED;
         }
         else if (str.length()<MAX_PASSWORD_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
@@ -83,8 +91,8 @@ void login() {
             putch('*');
         }
         return READSTR_CONTINUE;
-    });
-    if (pwd == "") goto start;
+    }, pwd);
+    if (res == READSTR_CANCELED) goto start;
 
     neb::CJsonObject json;
     json.Add("type", "login");
@@ -100,9 +108,10 @@ void showMainMenu() {
     while(1) {
         char ch = getch();
         if (ch == '1') {
-            startMatching();
+            startMatching(false);
             break;
         } else if (ch == '2') {
+            startMatching(true);
             break;
         } else if (ch == '3') {
             showPersonalInfo();
@@ -120,7 +129,14 @@ void showMainMenu() {
 
 void welcome() {
     clrscr();
-    printf("联机五子棋\n1.登录\n2.注册\n3.离线游戏\n");
+    putsCenter("联机五子棋", 1, 1, 0, -10);
+    putsCenter("────────────────────────────────────────────", 1, 1, 0, -8,0.5f);
+    gotoxy(width/2-5, height/2-2);
+    printf("1.  登录");
+    gotoxy(width/2-5, height/2);
+    printf("2.  注册");
+    gotoxy(width/2-5, height/2+2);
+    printf("0.  退出");
 
     while(1) {
         char ch = getch();
@@ -130,9 +146,8 @@ void welcome() {
         } else if (ch == '2') {
             showRegister();
             break;
-        } else if (ch == '3') {
-            startGame();
-            break;
+        } else if (ch == '0') {
+            exit(0);
         }
     }
 }
@@ -165,10 +180,16 @@ void showPersonalInfo() {
 
 void printPersonalInfo() {
     clrscr();
-    string name, des; int rating;
+    string name, des; int totalContest, winContest;
     playerInfo.Get("name", name); playerInfo.Get("description", des);
-    playerInfo.Get("rating", rating);
-    printf("%s\n等级:%d\n个性签名:%s\n", name.c_str(), rating, des.c_str());
+    playerInfo.Get("totalContest", totalContest);
+    playerInfo.Get("winContest",winContest);
+    if (totalContest==0) {
+        printf("%s\n历史棋局场数:%d\n胜率:暂无\n个性签名:%s\n", name.c_str(), totalContest,  des.c_str());
+    } else {
+        printf("%s\n历史棋局场数:%d\n胜率:%d%%\n个性签名:%s\n", name.c_str(), totalContest, winContest*100/totalContest, des.c_str());
+    }
+
 
     printf("\n\n1.更改用户名\n2.更改个性签名\n3.更改密码\n0.返回\n");
 
@@ -279,4 +300,13 @@ void printTurningInfo() {
     clreol();
     if (isMyTurn) printf("该您下了");
     else printf("请等待对方下棋");
+    gotoxy(width, height);
+}
+
+void setCursorVisible(bool visible) {
+    HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_CURSOR_INFO CursorInfo;
+    GetConsoleCursorInfo(handle, &CursorInfo);//获取控制台光标信息
+    CursorInfo.bVisible = visible; //设置控制台光标可见性
+    SetConsoleCursorInfo(handle, &CursorInfo);//设置控制台光标状态
 }

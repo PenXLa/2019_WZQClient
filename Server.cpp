@@ -121,7 +121,7 @@ void onReceive(neb::CJsonObject& json) {
             mainThreadFunctions.emplace(showMainMenu);//主线程调用showMainMenu
         } else {
             MessageBoxA(nullptr, "登录失败，请检查用户名和密码拼写是否正确", "联机五子棋", MB_OK | MB_ICONWARNING);
-            mainThreadFunctions.emplace(welcome);//主线程调用
+            mainThreadFunctions.emplace(login);//主线程调用
         }
     } else if (type == "registerResult") {
         int result;
@@ -180,8 +180,24 @@ void onReceive(neb::CJsonObject& json) {
         json.Get("color", color);
         putChess(r,c,color);
     } else if (type == "oppExited") {
-        MessageBoxA(NULL, "对方退出游戏", "联机五子棋", MB_OK);
+        gameRunning = false;//gameRunning设为false，就会停止监听键盘，主线程停止阻塞
+        MessageBoxA(NULL, "对方主动退出了游戏，此局您取得了胜利", "联机五子棋", MB_OK);
+        mainThreadFunctions.emplace(showMainMenu);
+    } else if (type == "win") {
+        int winr, winc, wind, who;
+        json.Get("who", who);
+        json.Get("cenR", winr);
+        json.Get("cenC", winc);
+        json.Get("dir", wind);
         gameRunning = false;
+
+        std::string msg;
+        if (chessColor == who) {
+            msg = "恭喜您取得了胜利！\n按确定退出游戏";
+        } else {
+            msg = "很遗憾您输了，下次努力哦\n按确定退出游戏";
+        }
+        MessageBoxA(NULL, msg.c_str(), "联机五子棋", MB_OK|MB_ICONINFORMATION);
         mainThreadFunctions.emplace(showMainMenu);
     }
 }

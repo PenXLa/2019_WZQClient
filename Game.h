@@ -5,7 +5,7 @@
 #include "JSONLib/CJsonObject.hpp"
 
 void startGame();
-void startMatching();
+void startMatching(bool friendMatching);
 void putChess(int r, int c, char color);
 void prepareGame();
 
