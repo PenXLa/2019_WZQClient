@@ -127,12 +127,13 @@ void onReceive(neb::CJsonObject& json) {
         int result;
         json.Get("result", result);
         if (result) {
+            MessageBox(nullptr, "注册成功", "联机五子棋", MB_OK|MB_ICONINFORMATION);
             mainThreadFunctions.emplace(showMainMenu);//主线程调用
         } else {
             std::string reason;
             json.Get("reason", reason);
-            MessageBoxA(nullptr, reason.c_str(),"注册失败",MB_OK | MB_ICONWARNING);
-            mainThreadFunctions.emplace(welcome);//主线程调用
+            MessageBox(nullptr, reason.c_str(),"注册失败",MB_OK | MB_ICONWARNING);
+            mainThreadFunctions.emplace(showRegister);//主线程调用
         }
     } else if (type == "showPersonalInfo") {
         playerInfo = json;

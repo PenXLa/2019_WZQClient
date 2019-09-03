@@ -23,7 +23,8 @@ void putsCenter(string str, bool xcen = true, bool ycen = true, int xoff = 0, in
 //用于自定义读取字符串
 const string acceptedChars = "`1234567890-=~!@#$%^&*(_+qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM[]\\{}|;':\",./<>?";
 const int READSTR_SUCCESS = 1, READSTR_CANCELED = 2, READSTR_CONTINUE = 0;
-int readString(std::function<int(char&, string&)> onGotChar, string &str) {
+const int READSTR_OVERRIDE_ENTER = 1, READSTR_FORBID_EMPTY = 1<<1, READSTR_OVERRIDE_ESC = 1<<2;
+int readString(std::function<int(char&, string&)> onGotChar, string &str, int style = 0) {
     setCursorVisible(true);
     while(true) {
         char ch = getch();
@@ -32,14 +33,14 @@ int readString(std::function<int(char&, string&)> onGotChar, string &str) {
                 printf("\b \b");
                 str.pop_back();
             }
-        } else if (ch == '\r') {
+        } else if (ch == '\r' && !(style & READSTR_OVERRIDE_ENTER) && !(str.length()==0 && (style&READSTR_FORBID_EMPTY))) {
+            //上面3个条件依次判断：是否是回车键，style是否表示覆写'\r'键，style是否表示禁止返回空字符串
             setCursorVisible(false);
             return READSTR_SUCCESS;
-        } /*else if (ch == KEY_ESC) {
-            int len = str.length();
-            for (int i=0; i<len; ++i) printf("\b \b");
-            str.clear();
-        } */else {
+        } else if (ch == KEY_ESC && !(style&READSTR_OVERRIDE_ESC)) {
+            setCursorVisible(false);
+            return READSTR_CANCELED;
+        } else {
             int res = onGotChar(ch, str);
             if (res == READSTR_SUCCESS || res == READSTR_CANCELED) {
                 setCursorVisible(false);
@@ -66,14 +67,12 @@ void login() {
     string username, pwd;
     gotoxy(half_w-xoff+8, half_h);
     int res = readString([](char &ch, string &str){
-        if (ch == KEY_ESC) {
-            return READSTR_CANCELED;
-        } else if (str.length() < MAX_USERNAME_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
+        if (str.length() < MAX_USERNAME_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
             str.push_back(ch);
             putch(ch);
         }
         return READSTR_CONTINUE;
-    }, username);
+    }, username, READSTR_FORBID_EMPTY);
     if (res == READSTR_CANCELED) {
         mainThreadFunctions.emplace(welcome);
         return;
@@ -83,15 +82,12 @@ void login() {
     gotoxy(half_w-xoff+8, half_h+2);
     //读取密码
     res = readString([](char &ch, string &str){
-        if (ch == KEY_ESC) {
-            return READSTR_CANCELED;
-        }
-        else if (str.length()<MAX_PASSWORD_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
+        if (str.length()<MAX_PASSWORD_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
             str.push_back(ch);
             putch('*');
         }
         return READSTR_CONTINUE;
-    }, pwd);
+    }, pwd, READSTR_FORBID_EMPTY);
     if (res == READSTR_CANCELED) goto start;
 
     neb::CJsonObject json;
@@ -154,19 +150,80 @@ void welcome() {
 
 
 void showRegister() {
+    const int xoff = 10;
+    start:
     clrscr();
+    gotoxy(half_w-xoff, half_h-2);
+    puts("注册账号(按ESC返回)");
+    gotoxy(half_w-xoff, half_h);
+    puts("用户名： ");
+    gotoxy(half_w-xoff, half_h+2);
+    puts("密码：   ");
+    gotoxy(half_w-xoff, half_h+4);
+    puts("确认密码：");
 
-    std::string username, pwd;
-    printf("输入用户名：");
-    std::cin >> username;
-    printf("输入密码：");
-    std::cin >> pwd;
+    string username, pwd, pwd2;
+
+    gotoxy(half_w-xoff+10, half_h);
+    clreol();
+    int res = readString([](char &ch, string &str){
+        if (str.length() < MAX_USERNAME_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
+            str.push_back(ch);
+            putch(ch);
+        }
+        return READSTR_CONTINUE;
+    }, username, READSTR_FORBID_EMPTY);
+    if (res == READSTR_CANCELED) {
+        mainThreadFunctions.emplace(welcome);
+        return;
+    }
+
+    pwd_1:
+    gotoxy(half_w-xoff+10, half_h+2);
+    clreol();
+    //读取密码
+    res = readString([](char &ch, string &str){
+        if (str.length()<MAX_PASSWORD_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
+            str.push_back(ch);
+            putch('*');
+        }
+        return READSTR_CONTINUE;
+    }, pwd, READSTR_FORBID_EMPTY);
+    if (res == READSTR_CANCELED) goto start;
+
+
+    gotoxy(half_w-xoff+10, half_h+4);
+    clreol();
+    //读取密码
+    res = readString([](char &ch, string &str){
+        if (str.length()<MAX_PASSWORD_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
+            str.push_back(ch);
+            putch('*');
+        }
+        return READSTR_CONTINUE;
+    }, pwd2, READSTR_FORBID_EMPTY);
+    if (res == READSTR_CANCELED) {
+        gotoxy(half_w-xoff+10, half_h+4);
+        clreol();
+        goto pwd_1;
+    }
+
+    if (pwd!=pwd2) {
+        MessageBox(NULL, "两次输入密码不同，请重新输入", "联机五子棋", MB_OK|MB_ICONWARNING);
+        gotoxy(half_w-xoff+10, half_h+4);
+        clreol();
+        gotoxy(half_w-xoff+10, half_h+2);
+        clreol();
+        goto pwd_1;
+    }
+
 
     neb::CJsonObject json;
     json.Add("type", "register");
     json.Add("userName", username);
     json.Add("pwd", pwd);
     sendPack(json);
+
 }
 
 void showPersonalInfo() {

@@ -86,7 +86,6 @@ void printGrid(int r, int c, int dirtR=-1, int dirtC=-1) {
                     }
                     else chr=(b==2||b==7?"━":"─");
                 else
-                    //以下代码是基于微软雅黑字体的对齐方式
                     if (j%4==0) chr=(b==4||b==5?"┃":"│");
                     else chr = " ";
 
