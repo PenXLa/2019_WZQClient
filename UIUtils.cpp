@@ -40,7 +40,7 @@ int readString(std::function<int(char&, string&)> onGotChar, string &str, int st
         } else if (ch == KEY_ESC && !(style&READSTR_OVERRIDE_ESC)) {
             setCursorVisible(false);
             return READSTR_CANCELED;
-        } else {
+        } else if (!(ch<=31 || ch==127)) {
             int res = onGotChar(ch, str);
             if (res == READSTR_SUCCESS || res == READSTR_CANCELED) {
                 setCursorVisible(false);
@@ -97,9 +97,54 @@ void login() {
     sendPack(json);
 }
 
+
+
+void printRect(int x, int y, int w, int h, const string &txt, bool withBoard = true, int bgcolor = BLACK, int fgcolor = LIGHTGRAY, int txtcolor = LIGHTGRAY) {
+    textcolor(fgcolor);
+    gotoxy(x,y);
+    for (int i=0; i<h; ++i) {
+        gotoxy(x, y+i);
+        for (int j=0; j<w; ++j) {
+            if (withBoard) {
+                if (j==0) {
+                    textbackground(BLACK);
+                    if (i==0) printf("┌");
+                    else if (i==h-1) printf("└");
+                    else printf("│");
+                    textbackground(bgcolor);
+                } else if (j==w-1) {
+                    if (i==0) printf("┐");
+                    else if (i==h-1) printf("┘");
+                    else printf("│");
+                } else {
+                    if (i==0 || i==h-1) printf("─");
+                    else printf(" ");
+                }
+            } else {
+                textbackground(j==0?BLACK:bgcolor);
+                printf(" ");
+            }
+
+        }
+    }
+    textcolor(txtcolor);
+    gotoxy((w-txt.length())/2+x, y+h/2);
+    printf(txt.c_str());
+    textcolor(LIGHTGRAY);
+    textbackground(BLACK);
+}
+
+
+
 void showMainMenu() {
+    const int xoff = 5, yoff = 2;
     clrscr();
-    printf("1.随机匹配\n2.好友对战\n3.个人资料\n4.更换账号\n0.退出\n");
+    printRect(20+xoff, 7+yoff, 26, 23, "1.随机匹配", false, LIGHTBLUE,0, BLACK);
+    printRect(47+xoff, 7+yoff, 26, 23, "2.好友对战", false, LIGHTCYAN, 0, BLACK);
+    printRect(74+xoff, 7+yoff, 26, 11, "3.个人资料", false, LIGHTMAGENTA, 0, BLACK);
+    printRect(74+xoff, 19+yoff, 26, 11, "4.设置", false, LIGHTGREEN, 0, BLACK);
+    printRect(101+xoff, 7+yoff, 26, 11, "5.更换账号", false, YELLOW, 0, BLACK);
+    printRect(101+xoff, 19+yoff, 26, 11, "0.退出", false, LIGHTRED, 0, BLACK);
 
     while(1) {
         char ch = getch();
@@ -113,6 +158,8 @@ void showMainMenu() {
             showPersonalInfo();
             break;
         } else if (ch == '4') {
+
+        } else if (ch == '5') {
             welcome();
             break;
         } else if (ch == '0') {
@@ -241,10 +288,11 @@ void printPersonalInfo() {
     playerInfo.Get("name", name); playerInfo.Get("description", des);
     playerInfo.Get("totalContest", totalContest);
     playerInfo.Get("winContest",winContest);
+    if (des=="") des="暂无";
     if (totalContest==0) {
-        printf("%s\n历史棋局场数:%d\n胜率:暂无\n个性签名:%s\n", name.c_str(), totalContest,  des.c_str());
+        printf("用户名：%s\n\n历史棋局场数：%d\n\n胜率：暂无\n\n个性签名：%s\n", name.c_str(), totalContest,  des.c_str());
     } else {
-        printf("%s\n历史棋局场数:%d\n胜率:%d%%\n个性签名:%s\n", name.c_str(), totalContest, winContest*100/totalContest, des.c_str());
+        printf("用户名：%s\n\n历史棋局场数：%d\n\n胜率：%d%%\n\n个性签名：%s\n", name.c_str(), totalContest, winContest*100/totalContest, des.c_str());
     }
 
 
@@ -322,8 +370,10 @@ void showChangePassword() {
 
 void printGameHelp() {
     gotoxy(CHESSBOARD_WIDTH*4+10, 2);
-    printf("使用方向键控制选中的格子");
+    printf("操作提示：");
     gotoxy(CHESSBOARD_WIDTH*4+10, 3);
+    printf("使用方向键控制选中的格子");
+    gotoxy(CHESSBOARD_WIDTH*4+10, 4);
     printf("Enter键放下棋子");
 }
 
@@ -332,23 +382,21 @@ void printGamingPlayerInfo() {
     std::string name, des;
     myInfo.Get("name", name);
     myInfo.Get("description", des);
-    gotoxy(CHESSBOARD_WIDTH*4+10, 5);
-    if (chessColor=='w') printf("白棋");
-    else printf("黑棋");
-    gotoxy(CHESSBOARD_WIDTH*4+10, 6);
+    gotoxy(CHESSBOARD_WIDTH*4+10, 8);
+    if (chessColor=='w') printf("白棋玩家：");
+    else printf("黑棋玩家：");
     printf("%s", name.c_str());
-    gotoxy(CHESSBOARD_WIDTH*4+10, 7);
+    gotoxy(CHESSBOARD_WIDTH*4+10, 9);
     printf("%s", des.c_str());
 
 
     oppInfo.Get("name", name);
     oppInfo.Get("description", des);
-    gotoxy(CHESSBOARD_WIDTH*4+10, 9);
-    if (chessColor=='b') printf("白棋");
-    else printf("黑棋");
-    gotoxy(CHESSBOARD_WIDTH*4+10, 10);
-    printf("%s", name.c_str());
     gotoxy(CHESSBOARD_WIDTH*4+10, 11);
+    if (chessColor=='b') printf("白棋玩家：");
+    else printf("黑棋玩家：");
+    printf("%s", name.c_str());
+    gotoxy(CHESSBOARD_WIDTH*4+10, 12);
     printf("%s", des.c_str());
 }
 
@@ -356,7 +404,7 @@ void printTurningInfo() {
     gotoxy(CHESSBOARD_WIDTH*4+10, 15);
     clreol();
     if (isMyTurn) printf("该您下了");
-    else printf("请等待对方下棋");
+    else printf("请等待对方落子");
     gotoxy(width, height);
 }
 
@@ -366,4 +414,11 @@ void setCursorVisible(bool visible) {
     GetConsoleCursorInfo(handle, &CursorInfo);//获取控制台光标信息
     CursorInfo.bVisible = visible; //设置控制台光标可见性
     SetConsoleCursorInfo(handle, &CursorInfo);//设置控制台光标状态
+}
+
+void printGamingCountdown(int leftTime) {
+    gotoxy(CHESSBOARD_WIDTH*4+10, 16);
+    clreol();
+    if (isMyTurn) printf("请在 %d 秒内落子", leftTime);
+    else printf("剩余 %d 秒", leftTime);
 }

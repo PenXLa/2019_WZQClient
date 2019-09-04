@@ -39,7 +39,7 @@ inline int getPosBoundary(int i, int j, int r, int c) {
 char mat[CHESSBOARD_HEIGHT][CHESSBOARD_WIDTH];
 int curR = 5, curC = 5;
 //画一个r行c列的网格，dirt参数若不为-1则表示仅更新dirt标识出的方格
-void printGrid(int r, int c, int dirtR=-1, int dirtC=-1) {
+void printGrid(int r, int c, int dirtR, int dirtC) {
     textbackground(BROWN);
     const char *chr;
     //基于5*3的cell大小
@@ -103,7 +103,13 @@ void printGrid(int r, int c, int dirtR=-1, int dirtC=-1) {
         for (int j=0; j<c; ++j) {
             if ((dirtR==-1 || i==dirtR) && (dirtC==-1 || j==dirtC) && mat[i][j]) {
                 gotoxy(j*4+3, i*2+2);
-                textcolor(mat[i][j]=='w'?WHITE:BLACK);
+                if (mat[i][j]=='w') {
+                    textcolor(WHITE);
+                } else if (mat[i][j] == 'b') {
+                    textcolor(BLACK);
+                } else if (mat[i][j]=='r') {
+                    textcolor(LIGHTRED);
+                }
                 printf("●");
             }
         }

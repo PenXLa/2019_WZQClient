@@ -120,7 +120,9 @@ void onReceive(neb::CJsonObject& json) {
         if (result) {
             mainThreadFunctions.emplace(showMainMenu);//主线程调用showMainMenu
         } else {
-            MessageBoxA(nullptr, "登录失败，请检查用户名和密码拼写是否正确", "联机五子棋", MB_OK | MB_ICONWARNING);
+            std::string reason;
+            json.Get("reason", reason);
+            MessageBoxA(nullptr, reason.c_str(), "登录失败", MB_OK | MB_ICONWARNING);
             mainThreadFunctions.emplace(login);//主线程调用
         }
     } else if (type == "registerResult") {
@@ -182,28 +184,49 @@ void onReceive(neb::CJsonObject& json) {
         putChess(r,c,color);
     } else if (type == "oppExited") {
         gameRunning = false;//gameRunning设为false，就会停止监听键盘，主线程停止阻塞
-        MessageBoxA(NULL, "对方主动退出了游戏，此局您取得了胜利", "联机五子棋", MB_OK);
+        MessageBoxA(NULL, "对方主动退出了游戏，此局您取得了胜利", "联机五子棋", MB_OK|MB_ICONINFORMATION);
         mainThreadFunctions.emplace(showMainMenu);
     } else if (type == "win") {
-        int winr, winc, wind, who;
+        int winr, winc, wind, who, winType;
         json.Get("who", who);
         json.Get("cenR", winr);
         json.Get("cenC", winc);
         json.Get("dir", wind);
+        json.Get("winType", winType);
         gameRunning = false;
 
         std::string msg;
-        if (chessColor == who) {
-            msg = "恭喜您取得了胜利！\n按确定退出游戏";
-        } else {
-            msg = "很遗憾您输了，下次努力哦\n按确定退出游戏";
+
+        if (winType==1) {
+            if (chessColor == who) msg = "恭喜您取得了胜利！\n\n按确定返回主菜单";
+            else msg = "很遗憾您输了，下次努力哦\n\n按确定返回主菜单";
+            int dirs[4][5][2] = {{{-2,-2}, {-1,-1}, {0,0}, {1,1}, {2,2}},
+                                    {{-2,2}, {-1,1}, {0,0}, {1,-1}, {2,-2}},
+                                    {{0,-2}, {0,-1}, {0,0}, {0,1}, {0,2}},
+                                    {{0,-2}, {0,-1}, {0,0}, {0,1}, {0,2}}};
+
+            for (int i=0; i<5; ++i) {
+                mat[winr+dirs[wind][i][0]][winc+dirs[wind][i][1]] = 'r';
+                printGrid(CHESSBOARD_HEIGHT, CHESSBOARD_WIDTH, winr+dirs[wind][i][0], winc+dirs[wind][i][1]);
+            }
+        } else if (winType == 2) {
+            if (chessColor == who) msg = "对方未能在规定时间内落子，此局您取得了胜利\n\n按确定返回主菜单";
+            else msg = "您未能在规定时间内落子，您输了\n\n按确定返回主菜单";
         }
-        MessageBoxA(NULL, msg.c_str(), "联机五子棋", MB_OK|MB_ICONINFORMATION);
+
+        MessageBox(NULL, msg.c_str(), "联机五子棋", MB_OK|MB_ICONINFORMATION);
         mainThreadFunctions.emplace(showMainMenu);
+    } else if (type == "countdown") {
+        if (gameRunning) {
+            int timeLeft;
+            json.Get("timeLeft", timeLeft);
+            printGamingCountdown(timeLeft);
+        }
     }
 }
 
 void onDisconnected() {
-    std::cout << "Server shutdown.\n";
+    MessageBox(NULL, "与服务器的连接断开，请确认网络连接", "联机五子棋", MB_OK|MB_ICONWARNING);
+    exit(0);
 }
 
