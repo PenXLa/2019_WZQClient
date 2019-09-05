@@ -8,7 +8,7 @@
 #include "Game.h"
 
 std::queue<void(*)(void)> mainThreadFunctions;
-
+std::mutex uimux;
 
 
 //用于在屏幕中心输出文字
@@ -24,7 +24,7 @@ void putsCenter(string str, bool xcen = true, bool ycen = true, int xoff = 0, in
 const string acceptedChars = "`1234567890-=~!@#$%^&*(_+qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM[]\\{}|;':\",./<>?";
 const int READSTR_SUCCESS = 1, READSTR_CANCELED = 2, READSTR_CONTINUE = 0;
 const int READSTR_OVERRIDE_ENTER = 1, READSTR_FORBID_EMPTY = 1<<1, READSTR_OVERRIDE_ESC = 1<<2;
-int readString(std::function<int(char&, string&)> onGotChar, string &str, int style = 0) {
+int readString(std::function<int(char&, string&)> onGotChar, string &str, int style) {
     setCursorVisible(true);
     while(true) {
         char ch = getch();
@@ -51,6 +51,49 @@ int readString(std::function<int(char&, string&)> onGotChar, string &str, int st
     }
 }
 
+int readWString(std::function<int(wchar_t&, std::wstring&)> onGotChar, std::wstring &str, int style = 0) {
+    setCursorVisible(true);
+    while(true) {
+        wchar_t ch = _getwch();
+        if (ch == '\b') {
+            if (str.length()>0) {
+                if (*str.rbegin()<255) printf("\b \b");
+                else printf("\b\b  \b\b");
+                str.pop_back();
+            }
+        } else if (ch == '\r' && !(style & READSTR_OVERRIDE_ENTER) && !(str.length()==0 && (style&READSTR_FORBID_EMPTY))) {
+            //上面3个条件依次判断：是否是回车键，style是否表示覆写'\r'键，style是否表示禁止返回空字符串
+            setCursorVisible(false);
+            return READSTR_SUCCESS;
+        } else if (ch == KEY_ESC && !(style&READSTR_OVERRIDE_ESC)) {
+            setCursorVisible(false);
+            return READSTR_CANCELED;
+        } else {
+            int res = onGotChar(ch, str);
+            if (res == READSTR_SUCCESS || res == READSTR_CANCELED) {
+                setCursorVisible(false);
+                return res;
+            }
+        }
+
+    }
+}
+
+std::string wch2bytes(wchar_t wch) {
+    int bytes = ::WideCharToMultiByte(CP_ACP, 0, &wch, 1, NULL, 0, NULL, NULL);
+    std::string ans;
+    ans.resize(bytes);
+    bytes = ::WideCharToMultiByte(CP_ACP, 0, &wch, 1, const_cast<char *>(ans.data()), ans.size(), NULL, NULL);
+    return ans;
+}
+
+std::string wstr2str(const std::wstring &wstr) {
+    int bytes = ::WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), wstr.size(), NULL, 0, NULL, NULL);
+    std::string str;
+    str.resize(bytes);
+    bytes = ::WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), wstr.size(),const_cast<char *>(str.data()),str.size(), NULL, NULL);
+    return str;
+}
 
 
 void login() {
@@ -142,9 +185,9 @@ void showMainMenu() {
     printRect(20+xoff, 7+yoff, 26, 23, "1.随机匹配", false, LIGHTBLUE,0, BLACK);
     printRect(47+xoff, 7+yoff, 26, 23, "2.好友对战", false, LIGHTCYAN, 0, BLACK);
     printRect(74+xoff, 7+yoff, 26, 11, "3.个人资料", false, LIGHTMAGENTA, 0, BLACK);
-    printRect(74+xoff, 19+yoff, 26, 11, "4.设置", false, LIGHTGREEN, 0, BLACK);
+    printRect(74+xoff, 19+yoff, 26, 11, "4.帮助", false, LIGHTGREEN, 0, BLACK);
     printRect(101+xoff, 7+yoff, 26, 11, "5.更换账号", false, YELLOW, 0, BLACK);
-    printRect(101+xoff, 19+yoff, 26, 11, "0.退出", false, LIGHTRED, 0, BLACK);
+    printRect(101+xoff, 19+yoff, 26, 11, "ESC.退出", false, LIGHTRED, 0, BLACK);
 
     while(1) {
         char ch = getch();
@@ -158,11 +201,12 @@ void showMainMenu() {
             showPersonalInfo();
             break;
         } else if (ch == '4') {
-
+            showHelp();
+            break;
         } else if (ch == '5') {
             welcome();
             break;
-        } else if (ch == '0') {
+        } else if (ch == KEY_ESC) {
             exit(0);
         }
     }
@@ -189,7 +233,7 @@ void welcome() {
         } else if (ch == '2') {
             showRegister();
             break;
-        } else if (ch == '0') {
+        } else if (ch == '0' || ch == KEY_ESC) {
             exit(0);
         }
     }
@@ -209,8 +253,7 @@ void showRegister() {
     gotoxy(half_w-xoff, half_h+4);
     puts("确认密码：");
 
-    string username, pwd, pwd2;
-
+    string username;
     gotoxy(half_w-xoff+10, half_h);
     clreol();
     int res = readString([](char &ch, string &str){
@@ -226,6 +269,7 @@ void showRegister() {
     }
 
     pwd_1:
+    string pwd, pwd2;
     gotoxy(half_w-xoff+10, half_h+2);
     clreol();
     //读取密码
@@ -282,6 +326,10 @@ void showPersonalInfo() {
     printf("加载中...\n");
 }
 
+
+
+const int pioffx = 57, pioffy = 10;
+int desoffx, desoffy;
 void printPersonalInfo() {
     clrscr();
     string name, des; int totalContest, winContest;
@@ -289,29 +337,59 @@ void printPersonalInfo() {
     playerInfo.Get("totalContest", totalContest);
     playerInfo.Get("winContest",winContest);
     if (des=="") des="暂无";
-    if (totalContest==0) {
-        printf("用户名：%s\n\n历史棋局场数：%d\n\n胜率：暂无\n\n个性签名：%s\n", name.c_str(), totalContest,  des.c_str());
-    } else {
-        printf("用户名：%s\n\n历史棋局场数：%d\n\n胜率：%d%%\n\n个性签名：%s\n", name.c_str(), totalContest, winContest*100/totalContest, des.c_str());
+
+
+    int xoff = pioffx, yoff = pioffy;
+    //打印用户名
+    gotoxy(xoff, yoff);
+    textcolor(LIGHTBLUE);
+    printf(name.c_str());
+    textcolor(LIGHTGRAY);
+    //打印历史战绩
+    gotoxy(xoff, yoff+=2);
+    if (totalContest>0) {
+        printf("共玩过 %d 局，其中赢了 %d 局，胜率为 %d%%", totalContest, winContest, winContest*100/totalContest);
+
+        gotoxy(xoff, yoff+=2);
+        const int barLen = 40;
+        for (int i=0; i<barLen; ++i) {
+            textbackground(i*totalContest < barLen*winContest?LIGHTGREEN:LIGHTRED);
+            putchar(' ');
+        }
+        textbackground(BLACK);
     }
+    else printf("共玩过 %d 局，其中赢了 %d 局，暂无胜率", totalContest, winContest);
 
+    //打印个性签名
+    gotoxy(xoff, yoff+=2);
+    printf("个性签名：%s", des.c_str());
+    desoffx = xoff+10, desoffy = yoff;
 
-    printf("\n\n1.更改用户名\n2.更改个性签名\n3.更改密码\n0.返回\n");
+    textcolor(DARKGRAY);
+    gotoxy(xoff+=14, yoff+=4);
+    printf("1.更改用户名");
+    gotoxy(xoff, yoff+=2);
+    printf("2.更改个性签名");
+    gotoxy(xoff, yoff+=2);
+    printf("3.更改密码");
+    gotoxy(xoff, yoff+=2);
+    printf("ESC.返回");
+    textcolor(LIGHTGRAY);
 
     while(1) {
         char ch = getch();
 
         if (ch == '1') {
-            showChangeUserName();
+            mainThreadFunctions.emplace(showChangeUserName);
             break;
         } else if (ch == '2') {
-            showChangeDescription();
+            mainThreadFunctions.emplace(showChangeDescription);
             break;
         } else if (ch == '3') {
-            showChangePassword();
+            mainThreadFunctions.emplace(showChangePassword);
             break;
-        } else if (ch == '0') {
-            showMainMenu();
+        } else if (ch==KEY_ESC) {
+            mainThreadFunctions.emplace(showMainMenu);
             break;
         }
     }
@@ -321,42 +399,90 @@ void printPersonalInfo() {
 
 
 void showChangeUserName() {
-    clrscr();
-    printf("输入用户名：");
+    gotoxy(pioffx, pioffy);
+    clreol();
     std::string userName;
-    cin >> userName;
-    if (MessageBoxA(NULL, "确认要修改吗?", "修改用户名", MB_YESNO | MB_ICONQUESTION) == IDYES) {
-        neb::CJsonObject json;
-        json.Add("type", "changeUserName");
-        json.Add("name", userName);
-        sendPack(json);
+
+    int res = readString([](char &ch, string &str){
+        if (str.length() < MAX_USERNAME_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
+            str.push_back(ch);
+            putch(ch);
+        }
+        return READSTR_CONTINUE;
+    }, userName, READSTR_FORBID_EMPTY);
+
+    if (res == READSTR_SUCCESS) {
+        if (MessageBoxA(NULL, "确认要修改吗?", "修改用户名", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+            neb::CJsonObject json;
+            json.Add("type", "changeUserName");
+            json.Add("name", userName);
+            sendPack(json);
+        }
     }
+
     showPersonalInfo();
 }
 
 void showChangeDescription() {
-    clrscr();
-    printf("输入个性签名：");
-    std::string des;
-    getline(cin,des);
-    if (MessageBoxA(NULL, "确认要修改吗?", "修改个性签名", MB_YESNO | MB_ICONQUESTION) == IDYES) {
-        neb::CJsonObject json;
-        json.Add("type", "changeDescription");
-        json.Add("des", des);
-        sendPack(json);
+    gotoxy(desoffx, desoffy);
+    clreol();
+
+    std::wstring wdes;
+    int res = readWString([](wchar_t& ch, std::wstring& str){
+        if (str.length()<MAX_DESCRIPTION_LEN) {
+            str+=ch;
+            _putwch(ch);
+        }
+        return READSTR_CONTINUE;
+    }, wdes);
+
+    if (res == READSTR_SUCCESS) {
+        std::string des = wstr2str(wdes);
+        if (MessageBoxA(NULL, "确认要修改吗?", "修改个性签名", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+            neb::CJsonObject json;
+            json.Add("type", "changeDescription");
+            json.Add("des", des);
+            sendPack(json);
+        }
     }
     showPersonalInfo();
 }
 
 
 void showChangePassword() {
+    start:;
     clrscr();
+    gotoxy(half_w-10, half_h-3);
+    cout << "修改密码(按ESC返回)";
+    gotoxy(half_w-10, half_h-1);
+    cout << "输入旧密码：";
+    gotoxy(half_w-10, half_h+1);
+    cout << "输入新密码：";
 
     string oldpwd, newpwd;
-    cout << "输入旧密码:\n";
-    cin >> oldpwd;
-    cout << "输入新密码:\n";
-    cin >> newpwd;
+    gotoxy(half_w+2, half_h-1);
+    int res = readString([](char &ch, string &str){
+        if (str.length() < MAX_PASSWORD_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
+            str.push_back(ch);
+            putch('*');
+        }
+        return READSTR_CONTINUE;
+    }, oldpwd, READSTR_FORBID_EMPTY);
+    if (res == READSTR_CANCELED) {
+        mainThreadFunctions.emplace(showPersonalInfo);
+        return;
+    }
+
+    gotoxy(half_w+2, half_h+1);
+    res = readString([](char &ch, string &str){
+        if (str.length() < MAX_PASSWORD_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
+            str.push_back(ch);
+            putch('*');
+        }
+        return READSTR_CONTINUE;
+    }, newpwd, READSTR_FORBID_EMPTY);
+
+    if (res == READSTR_CANCELED) goto start;
 
     neb::CJsonObject json;
     json.Add("type", "changePassword");
@@ -369,43 +495,54 @@ void showChangePassword() {
 
 
 void printGameHelp() {
-    gotoxy(CHESSBOARD_WIDTH*4+10, 2);
+    uimux.lock();
+    gotoxy(CHESSBOARD_WIDTH*4+22, 36);
     printf("操作提示：");
-    gotoxy(CHESSBOARD_WIDTH*4+10, 3);
+    gotoxy(CHESSBOARD_WIDTH*4+22, 37);
     printf("使用方向键控制选中的格子");
-    gotoxy(CHESSBOARD_WIDTH*4+10, 4);
+    gotoxy(CHESSBOARD_WIDTH*4+22, 38);
     printf("Enter键放下棋子");
+    uimux.unlock();
 }
 
 
 void printGamingPlayerInfo() {
+    uimux.lock();
     std::string name, des;
     myInfo.Get("name", name);
     myInfo.Get("description", des);
-    gotoxy(CHESSBOARD_WIDTH*4+10, 8);
+    gotoxy(CHESSBOARD_WIDTH*4+10, 13);
+    textcolor(LIGHTGREEN);
     if (chessColor=='w') printf("白棋玩家：");
     else printf("黑棋玩家：");
     printf("%s", name.c_str());
-    gotoxy(CHESSBOARD_WIDTH*4+10, 9);
+    gotoxy(CHESSBOARD_WIDTH*4+10, 14);
     printf("%s", des.c_str());
 
 
     oppInfo.Get("name", name);
     oppInfo.Get("description", des);
-    gotoxy(CHESSBOARD_WIDTH*4+10, 11);
+    gotoxy(CHESSBOARD_WIDTH*4+10, 18);
+    textcolor(LIGHTRED);
     if (chessColor=='b') printf("白棋玩家：");
     else printf("黑棋玩家：");
     printf("%s", name.c_str());
-    gotoxy(CHESSBOARD_WIDTH*4+10, 12);
+    gotoxy(CHESSBOARD_WIDTH*4+10, 19);
     printf("%s", des.c_str());
+
+    textcolor(LIGHTGRAY);
+
+    uimux.unlock();
 }
 
 void printTurningInfo() {
-    gotoxy(CHESSBOARD_WIDTH*4+10, 15);
+    uimux.lock();
+    gotoxy(CHESSBOARD_WIDTH*4+24, 3);
     clreol();
     if (isMyTurn) printf("该您下了");
     else printf("请等待对方落子");
     gotoxy(width, height);
+    uimux.unlock();
 }
 
 void setCursorVisible(bool visible) {
@@ -417,8 +554,55 @@ void setCursorVisible(bool visible) {
 }
 
 void printGamingCountdown(int leftTime) {
-    gotoxy(CHESSBOARD_WIDTH*4+10, 16);
+    uimux.lock();
+    gotoxy(CHESSBOARD_WIDTH*4+24, 5);
     clreol();
     if (isMyTurn) printf("请在 %d 秒内落子", leftTime);
     else printf("剩余 %d 秒", leftTime);
+    uimux.unlock();
+}
+
+void showHelp() {
+    clrscr();
+    putsCenter("联机五子棋", 1, 1, 0, -13);
+    putsCenter("────────────────────────────────────────────", 1, 1, 0, -11,0.5f);
+
+
+    int xoff=half_w-22, yoff=half_h-8;
+    gotoxy(xoff, yoff);
+    printf("作者：赵龙宇");
+
+    gotoxy(xoff, yoff+=2);
+    printf("联机五子棋功能介绍：");
+
+    gotoxy(xoff, yoff+=2);
+    printf("1.随机匹配");
+    gotoxy(xoff, yoff+=1);
+    printf("    随机匹配可以帮您随机找到一位玩家与您下棋。");
+
+    gotoxy(xoff, yoff+=2);
+    printf("2.好友对战");
+    gotoxy(xoff, yoff+=1);
+    printf("    通过输入和朋友约好的口令(暗号)，系统可以将");
+    gotoxy(xoff, yoff+=1);
+    printf("你们分配到一局，从而进行好友对战。");
+
+    gotoxy(xoff, yoff+=2);
+    printf("3.个人资料");
+    gotoxy(xoff, yoff+=1);
+    printf("    这里有您的用户名、历史战绩、个性签名等内容，");
+    gotoxy(xoff, yoff+=1);
+    printf("除此之外，您还可以在这里修改您的用户名和密码等");
+    gotoxy(xoff, yoff+=1);
+    printf("个人信息。");
+
+    gotoxy(xoff, yoff+=2);
+    printf("4.更换账号");
+    gotoxy(xoff, yoff+=1);
+    printf("    退出当前账号，切换账号登录。");
+
+    putsCenter("按ESC返回", true, false, 0, yoff+=4);
+
+    while(getch()!=KEY_ESC);
+    mainThreadFunctions.emplace(showMainMenu);
 }

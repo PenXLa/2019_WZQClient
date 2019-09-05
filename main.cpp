@@ -11,7 +11,7 @@ int main() {
     system(cmd);
     SetConsoleTitle("联机五子棋");
     setCursorVisible(false);
-    //********↑设置控制台大小*********
+    //********↑设置控制台属性*********
 
     readConfig();//读入配置文件
 

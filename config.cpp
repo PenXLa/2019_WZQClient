@@ -14,8 +14,9 @@ const unsigned char KEY_ESC = 0X1B;
 
 const unsigned int MAX_PASSWORD_LEN = 20;//最长密码长度
 const unsigned int MAX_USERNAME_LEN = 10;//最长用户名长度
-char SERVER_IP[20] = "127.0.0.1";
-
+char SERVER_IP[20] = "106.14.142.103";
+const int MAX_DESCRIPTION_LEN = 32;//最长个性签名长度
+const int MAX_FRIENDCODE_LEN = 10;
 
 
 void readConfig() {

@@ -37,9 +37,10 @@ inline int getPosBoundary(int i, int j, int r, int c) {
 
 
 char mat[CHESSBOARD_HEIGHT][CHESSBOARD_WIDTH];
-int curR = 5, curC = 5;
+int curR = CHESSBOARD_HEIGHT/2, curC = CHESSBOARD_WIDTH/2;
 //画一个r行c列的网格，dirt参数若不为-1则表示仅更新dirt标识出的方格
 void printGrid(int r, int c, int dirtR, int dirtC) {
+    uimux.lock();
     textbackground(BROWN);
     const char *chr;
     //基于5*3的cell大小
@@ -90,6 +91,7 @@ void printGrid(int r, int c, int dirtR, int dirtC) {
                     else chr = " ";
 
                 if (!strcmp(chr, "┃")) textcolor(chessColor=='w'?LIGHTGRAY:BLACK);
+                else if (!strcmp(chr, "━") && (j%4==2||j%4==3)) textcolor(chessColor=='w'?LIGHTGRAY:BLACK);
                 else textcolor(DARKGRAY);
                 printf(chr);
             }
@@ -117,6 +119,7 @@ void printGrid(int r, int c, int dirtR, int dirtC) {
 
     textcolor(LIGHTGRAY);
     textbackground(BLACK);
+    uimux.unlock();
 }
 
 
@@ -188,9 +191,21 @@ void startMatching(bool friendMatching) {
 
     if (friendMatching) {
         clrscr();
-        printf("输入匹配暗号，输入相同号码的玩家将被匹配到同一局\n匹配暗号可以是任意长度小于10的字符串，例如 hello123\n");
+        printf("输入匹配暗号，输入相同号码的玩家将被匹配到同一局(按ESC取消)\n\n匹配暗号由字母、数字、符号组成，长度不超过%d，例如 hello123\n\n", MAX_FRIENDCODE_LEN);
         std::string code;
-        std::cin >> code;
+
+        int res = readString([](char &ch, std::string &str){
+            if (str.length() < MAX_FRIENDCODE_LEN && acceptedChars.find(ch)!=acceptedChars.npos) {
+                str.push_back(ch);
+                putch(ch);
+            }
+            return READSTR_CONTINUE;
+        }, code, READSTR_FORBID_EMPTY);
+        if (res == READSTR_CANCELED) {
+            mainThreadFunctions.emplace(showMainMenu);
+            return;
+        }
+
         json.Add("code", code);
         json.Add("randomMatching", false);
     }

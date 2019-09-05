@@ -203,7 +203,7 @@ void onReceive(neb::CJsonObject& json) {
             int dirs[4][5][2] = {{{-2,-2}, {-1,-1}, {0,0}, {1,1}, {2,2}},
                                     {{-2,2}, {-1,1}, {0,0}, {1,-1}, {2,-2}},
                                     {{0,-2}, {0,-1}, {0,0}, {0,1}, {0,2}},
-                                    {{0,-2}, {0,-1}, {0,0}, {0,1}, {0,2}}};
+                                    {{-2,0}, {-1,0}, {0,0}, {1,0}, {2,0}}};
 
             for (int i=0; i<5; ++i) {
                 mat[winr+dirs[wind][i][0]][winc+dirs[wind][i][1]] = 'r';
@@ -222,6 +222,14 @@ void onReceive(neb::CJsonObject& json) {
             json.Get("timeLeft", timeLeft);
             printGamingCountdown(timeLeft);
         }
+    } else if (type == "offline") {
+        std::string reason;
+        std::string str = "您已被强制下线，因为\n";
+        json.Get("reason", reason);
+        str += reason;
+        str += "\n点击确定退出游戏";
+        MessageBox(NULL, str.c_str(), "联机五子棋", MB_OK | MB_ICONWARNING);
+        exit(0);
     }
 }
 
